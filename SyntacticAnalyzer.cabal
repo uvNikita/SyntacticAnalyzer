@@ -1,0 +1,23 @@
+name: SyntacticAnalyzer
+version: 0.0.1
+cabal-version: >=1.2
+build-type: Simple
+license: AllRightsReserved
+license-file: ""
+description: Parser with lexical and syntactic analyses optimized for given parallel architecture.
+data-dir: ""
+ 
+executable SyntacticAnalyzer
+    build-depends: QuickCheck -any, base -any, mtl -any
+    main-is: Main.hs
+    buildable: True
+    hs-source-dirs: src
+    other-modules: Analysis FSM
+ 
+test-suite test-SyntacticAnalyzer
+    build-depends: QuickCheck -any, base -any, mtl -any
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    buildable: True
+    cpp-options: -DMAIN_FUNCTION=testMain
+    hs-source-dirs: src
