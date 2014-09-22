@@ -46,7 +46,7 @@ testFSM = FSM {
     initCtx = initContext
 }
 
-testStep :: State -> CT -> Either String (State, Action Context)
+testStep :: State -> CT -> Either String (State, Action Context (Maybe String))
 testStep Init A = Right (AState, char 'a')
 testStep Init Other = Left "not a"
 testStep AState A = Right (AState, char 'a')

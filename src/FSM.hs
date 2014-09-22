@@ -19,17 +19,18 @@ module FSM (
     , CharType(..)
     , Action
     , char
+    , ctx
 ) where
 
 
-import Control.Monad.State (State, evalState, get, put)
+import Control.Monad.State (State, runState, get, put)
 
 
 data FSM st ct ctx =
     FSM {
           initState :: st,
           isFinish :: st -> Bool,
-          step :: st -> ct -> Either String (st, Action ctx),
+          step :: st -> ct -> Either String (st, Action ctx (Maybe String)),
           initCtx :: ctx
         }
 
@@ -42,33 +43,45 @@ data SysContext =
                }
 
 
+initSysContext :: SysContext
 initSysContext = SysContext { str = "", idx = 0, err = "" }
 
 
 data Context uctx = Context SysContext uctx
 
 
-type Action uctx = State (Context uctx) ()
+type Action uctx a = State (Context uctx) a
 
 
 class CharType a where
     fromChar :: Char -> a
 
 
-char :: Char -> Action uctx
+char :: Char -> Action uctx (Maybe String)
 char c = do
     Context sc@(SysContext {str}) uc <- get
     put $ Context sc {str = str ++ [c]} uc
+    return Nothing
 
-incr :: Action uctx
+incr :: Action uctx ()
 incr = do
     Context sc@(SysContext {idx}) uc <- get
     put $ Context sc {idx = idx + 1} uc
 
 
+ctx :: Action uctx uctx
+ctx = do
+    Context _ uc <- get
+    return uc
+
+
 runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either String String
-runFSM fsm input = evalState (loop (initState fsm) input) initContext
+runFSM fsm input = case result of
+                        Left err -> Left $ show idx ++ ": " ++ err
+                        Right s -> Right s
     where initContext = Context initSysContext (initCtx fsm)
+          (result, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
+                                                            initContext
           loop state [] | isFinish fsm state = do
                               Context (SysContext {str}) _ <- get
                               return $ Right str
@@ -78,8 +91,9 @@ runFSM fsm input = evalState (loop (initState fsm) input) initContext
               let next = step fsm state ct
               case next of
                   Left err -> return $ Left err
-                  Right (ns, act) -> do
+                  Right (ns, action) -> do
                       incr
-                      act
-                      loop ns cs
-
+                      r <- action
+                      case r of
+                          Just err -> return $ Left err
+                          _ -> loop ns cs
