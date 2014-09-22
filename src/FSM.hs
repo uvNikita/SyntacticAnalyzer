@@ -19,7 +19,8 @@ module FSM (
     , CharType(..)
     , Action
     , char
-    , ctx
+    , getCtx
+    , putCtx
 ) where
 
 
@@ -37,14 +38,13 @@ data FSM st ct ctx =
 
 data SysContext =
     SysContext {
-                 str :: String,
-                 idx :: Int,
-                 err :: String
+                 result :: String,
+                 idx :: Int
                }
 
 
 initSysContext :: SysContext
-initSysContext = SysContext { str = "", idx = 0, err = "" }
+initSysContext = SysContext { result = "", idx = 0 }
 
 
 data Context uctx = Context SysContext uctx
@@ -59,8 +59,8 @@ class CharType a where
 
 char :: Char -> Action uctx (Maybe String)
 char c = do
-    Context sc@(SysContext {str}) uc <- get
-    put $ Context sc {str = str ++ [c]} uc
+    Context sc@(SysContext {result}) uc <- get
+    put $ Context sc {result = result ++ [c]} uc
     return Nothing
 
 incr :: Action uctx ()
@@ -69,10 +69,16 @@ incr = do
     put $ Context sc {idx = idx + 1} uc
 
 
-ctx :: Action uctx uctx
-ctx = do
+getCtx :: Action uctx uctx
+getCtx = do
     Context _ uc <- get
     return uc
+
+
+putCtx :: uctx -> Action uctx ()
+putCtx uc = do
+    Context sc _ <- get
+    put $ Context sc uc
 
 
 runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either String String
@@ -83,8 +89,8 @@ runFSM fsm input = case result of
           (result, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
                                                             initContext
           loop state [] | isFinish fsm state = do
-                              Context (SysContext {str}) _ <- get
-                              return $ Right str
+                              Context (SysContext {result}) _ <- get
+                              return $ Right result
                         | otherwise = return $ Left "Unexpected end of input"
           loop state (c:cs) = do
               let ct = fromChar c
