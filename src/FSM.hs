@@ -21,17 +21,21 @@ module FSM (
     , char
     , getCtx
     , putCtx
+    , modifyCtx
 ) where
 
 
 import Control.Monad.State (State, runState, get, put)
 
 
+type Error = String
+
+
 data FSM st ct ctx =
     FSM {
           initState :: st,
           isFinish :: st -> Bool,
-          step :: st -> ct -> Either String (st, Action ctx (Maybe String)),
+          step :: st -> ct -> Either String (st, Action ctx (Maybe Error)),
           initCtx :: ctx
         }
 
@@ -57,11 +61,12 @@ class CharType a where
     fromChar :: Char -> a
 
 
-char :: Char -> Action uctx (Maybe String)
+char :: Char -> Action uctx (Maybe Error)
 char c = do
     Context sc@(SysContext {result}) uc <- get
     put $ Context sc {result = result ++ [c]} uc
     return Nothing
+
 
 incr :: Action uctx ()
 incr = do
@@ -81,10 +86,17 @@ putCtx uc = do
     put $ Context sc uc
 
 
-runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either String String
+modifyCtx :: (uctx -> uctx) -> Action uctx ()
+modifyCtx f = do
+    Context sc uc <- get
+    let uc' = f uc
+    put $ Context sc uc'
+
+
+runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either Error String
 runFSM fsm input = case result of
                         Left err -> Left $ show idx ++ ": " ++ err
-                        Right s -> Right s
+                        Right r -> Right r
     where initContext = Context initSysContext (initCtx fsm)
           (result, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
                                                             initContext
