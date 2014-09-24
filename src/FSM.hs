@@ -18,6 +18,8 @@ module FSM (
     , runFSM
     , CharType(..)
     , Action
+    , ErrorMsg
+    , pass
     , char
     , getCtx
     , putCtx
@@ -28,15 +30,16 @@ module FSM (
 import Control.Monad.State (State, runState, get, put)
 
 
-type Error = String
+type ErrorMsg = String
 
 
 data FSM st ct ctx =
     FSM {
           initState :: st,
           isFinish :: st -> Bool,
-          step :: st -> ct -> Either String (st, Action ctx (Maybe Error)),
-          initCtx :: ctx
+          step :: st -> ct -> Either ErrorMsg (st, Char -> Action ctx (Maybe ErrorMsg)),
+          initCtx :: ctx,
+          postProcess :: Action ctx (Maybe ErrorMsg)
         }
 
 
@@ -61,7 +64,11 @@ class CharType a where
     fromChar :: Char -> a
 
 
-char :: Char -> Action uctx (Maybe Error)
+pass :: Char -> Action uctx (Maybe ErrorMsg)
+pass _ = return Nothing
+
+
+char :: Char -> Action uctx (Maybe ErrorMsg)
 char c = do
     Context sc@(SysContext {result}) uc <- get
     put $ Context sc {result = result ++ [c]} uc
@@ -93,7 +100,7 @@ modifyCtx f = do
     put $ Context sc uc'
 
 
-runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either Error String
+runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either ErrorMsg String
 runFSM fsm input = case result of
                         Left err -> Left $ show idx ++ ": " ++ err
                         Right r -> Right r
@@ -101,8 +108,12 @@ runFSM fsm input = case result of
           (result, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
                                                             initContext
           loop state [] | isFinish fsm state = do
-                              Context (SysContext {result}) _ <- get
-                              return $ Right result
+                              err <- postProcess fsm
+                              case err of
+                                    Just emsg -> return $ Left emsg
+                                    Nothing -> do
+                                        Context (SysContext {result}) _ <- get
+                                        return $ Right result
                         | otherwise = return $ Left "Unexpected end of input"
           loop state (c:cs) = do
               let ct = fromChar c
@@ -111,7 +122,7 @@ runFSM fsm input = case result of
                   Left err -> return $ Left err
                   Right (ns, action) -> do
                       incr
-                      r <- action
+                      r <- action c
                       case r of
                           Just err -> return $ Left err
                           _ -> loop ns cs
