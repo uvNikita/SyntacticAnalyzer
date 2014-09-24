@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Analysis
@@ -41,7 +42,7 @@ checkBrackets = do
 
 instance CharType CT where
     fromChar c | c `elem` ['a'..'z'] ++ ['A'..'Z'] = Letter
-               | c `elem` ['1'..'9'] = Number
+               | c `elem` ['0'..'9'] = Number
                | c `elem` "+/*" = Operator
                | isSpace c = Space
     fromChar '-' = Minus

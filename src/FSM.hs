@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  FSM
@@ -24,13 +25,26 @@ module FSM (
     , getCtx
     , putCtx
     , modifyCtx
+    , prettyError
 ) where
 
 
-import Control.Monad.State (State, runState, get, put)
+import           Control.Monad.State (State, runState, get, put)
+import           Data.Text (Text, pack)
+import qualified Data.Text as T
 
 
-type ErrorMsg = String
+type ErrorMsg = Text
+
+
+data ParseError = ParseError Int ErrorMsg deriving (Show)
+
+
+prettyError :: Text -> ParseError -> Text
+prettyError input (ParseError idx msg) =
+    T.concat [input, "\n", marker, "\n", arrow, "\n", pack . show $ idx, ": ", msg]
+    where marker = T.justifyRight (idx + 1) ' ' "ʌ"
+          arrow = T.justifyRight (idx + 1) '─' "┘"
 
 
 data FSM st ct ctx =
@@ -45,7 +59,7 @@ data FSM st ct ctx =
 
 data SysContext =
     SysContext {
-                 result :: String,
+                 result :: Text,
                  idx :: Int
                }
 
@@ -71,7 +85,7 @@ pass _ = return Nothing
 char :: Char -> Action uctx (Maybe ErrorMsg)
 char c = do
     Context sc@(SysContext {result}) uc <- get
-    put $ Context sc {result = result ++ [c]} uc
+    put $ Context sc {result = T.snoc result c} uc
     return Nothing
 
 
@@ -100,29 +114,35 @@ modifyCtx f = do
     put $ Context sc uc'
 
 
-runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> String -> Either ErrorMsg String
-runFSM fsm input = case result of
-                        Left err -> Left $ show idx ++ ": " ++ err
+runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> Text -> Either ParseError Text
+runFSM fsm input = case runResult of
+                        Left err -> Left $ ParseError idx err
                         Right r -> Right r
     where initContext = Context initSysContext (initCtx fsm)
-          (result, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
+          (runResult, Context (SysContext {idx}) _) = runState (loop (initState fsm) input)
                                                             initContext
-          loop state [] | isFinish fsm state = do
+          loop state str = case T.uncons str of
+              Nothing -> finish state
+              Just (c, cs) ->  do
+                  r <- step' state c
+                  case r of
+                      Right ns -> loop ns cs
+                      Left err -> return $ Left err
+          finish state | isFinish fsm state = do
                               err <- postProcess fsm
                               case err of
                                     Just emsg -> return $ Left emsg
                                     Nothing -> do
                                         Context (SysContext {result}) _ <- get
                                         return $ Right result
-                        | otherwise = return $ Left "Unexpected end of input"
-          loop state (c:cs) = do
+                       | otherwise = return $ Left "Unexpected end of input"
+          step' state c = do
               let ct = fromChar c
               let next = step fsm state ct
               case next of
                   Left err -> return $ Left err
                   Right (ns, action) -> do
-                      incr
                       r <- action c
                       case r of
                           Just err -> return $ Left err
-                          _ -> loop ns cs
+                          Nothing -> incr >> return (Right ns)
