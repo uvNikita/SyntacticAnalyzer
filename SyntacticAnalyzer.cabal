@@ -8,17 +8,9 @@ description: Parser with lexical and syntactic analyses optimized for given para
 data-dir: ""
  
 executable SyntacticAnalyzer
-    build-depends: QuickCheck -any, base -any, mtl -any, text -any
+    build-depends: base -any, mtl -any, text -any
     main-is: Main.hs
     buildable: True
     extensions: NamedFieldPuns OverloadedStrings
     hs-source-dirs: src
     other-modules: FSM Analysis
- 
-test-suite test-SyntacticAnalyzer
-    build-depends: QuickCheck -any, base -any, mtl -any, text -any
-    type: exitcode-stdio-1.0
-    main-is: Main.hs
-    buildable: True
-    cpp-options: -DMAIN_FUNCTION=testMain
-    hs-source-dirs: src
