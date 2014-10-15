@@ -12,3 +12,4 @@ cabal.config
 *.lkshf
 *.lkshw
 *.lkshs
+*.swp

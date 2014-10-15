@@ -6,11 +6,12 @@ license: AllRightsReserved
 license-file: ""
 description: Parser with lexical and syntactic analyses optimized for given parallel architecture.
 data-dir: ""
- 
+
 executable SyntacticAnalyzer
     build-depends: base -any, mtl -any, text -any
     main-is: Main.hs
     buildable: True
     extensions: NamedFieldPuns OverloadedStrings
     hs-source-dirs: src
-    other-modules: FSM Analysis
+    other-modules: FSM Analysis Expression
+    ghc-options: -Wall

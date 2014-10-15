@@ -17,10 +17,15 @@ module Analysis (
     parser
 ) where
 
-import Data.Char (isSpace)
+import           Data.Char (isSpace)
+import           Data.Text (Text)
+import qualified Data.Text as T
+import           Control.Monad (when)
 
-import           FSM (FSM(FSM), CharType, ErrorMsg, Action, char, pass, getCtx, modifyCtx)
+import           FSM (FSM(FSM), CharType, ErrorMsg, Action, pass, getCtx, putCtx, modifyCtx)
 import qualified FSM
+import           Expression (RawExpr)
+import qualified Expression as E
 
 
 data State = ExprS | NumberS | DecimalS | VarS | SpaceS |
@@ -31,14 +36,21 @@ data CT = Letter | Number | Operator | Minus | Space |
           Dot | OpenBracket | CloseBracket | Other deriving (Show)
 
 
-type Brackets = Int
+data Context =
+    Context {
+              brackets :: Int,
+              operand :: Text,
+              result :: RawExpr
+            }
 
-checkBrackets :: Action Brackets (Maybe ErrorMsg)
+
+checkBrackets :: Action Context (Maybe ErrorMsg)
 checkBrackets = do
-    brackets <- getCtx
+    Context {brackets} <- getCtx
     return $ if brackets == 0
                 then Nothing
                 else Just "mismatched brackets"
+
 
 instance CharType CT where
     fromChar c | c `elem` ['a'..'z'] ++ ['A'..'Z'] = Letter
@@ -52,31 +64,62 @@ instance CharType CT where
     fromChar _ = Other
 
 
-parser :: FSM State CT Brackets
+parser :: FSM State CT Context RawExpr
 parser = FSM {
     FSM.initState = ExprS,
     FSM.isFinish = isFinish,
     FSM.step = step,
-    FSM.initCtx = 0,
-    FSM.postProcess = checkBrackets
+    FSM.initCtx = Context { brackets = 0, result = E.RawExpr [], operand = "" },
+    FSM.getResult = getResult
 }
 
 
-operator :: Char -> Action Brackets (Maybe ErrorMsg)
-operator o = char ' ' >> char o >> char ' '
+getResult :: Action Context (Either ErrorMsg RawExpr)
+getResult = do
+    err <- checkBrackets
+    flush
+    Context {result} <- getCtx
+    return $ maybe (Right result) Left err
 
 
-bracket :: Char -> Action Brackets (Maybe ErrorMsg)
-bracket '(' = char '(' >> modifyCtx (+1) >> return Nothing
+flush :: Action Context ()
+flush = do
+    Context { operand } <- getCtx
+    when (operand /= "") $ append (E.Operand operand)
+    modifyCtx (\ ctx -> ctx { operand = "" })
+
+
+append :: RawExpr -> Action Context ()
+append expr = do
+    ctx@(Context { brackets, result }) <- getCtx
+    let newresult = E.append result expr brackets
+    putCtx $ ctx { result = newresult }
+
+
+operator :: Char -> Action Context (Maybe ErrorMsg)
+operator o = flush >> append (E.Operator o) >> return Nothing
+
+char :: Char -> Action Context (Maybe ErrorMsg)
+char c = do
+    modifyCtx (\ ctx@(Context { operand }) -> ctx { operand = T.snoc operand c })
+    return Nothing
+
+
+bracket :: Char -> Action Context (Maybe ErrorMsg)
+bracket '(' = do
+    append (E.RawExpr [])
+    modifyCtx (\ ctx@(Context { brackets }) -> ctx { brackets = brackets + 1 })
+    return Nothing
+
 bracket ')' = do
-    _ <- char ')'
-    modifyCtx (\ i -> i - 1)
-    bn <- getCtx
-    return $ if bn < 0 then Just "Unexpected bracket" else Nothing
+    ctx@(Context {brackets}) <- getCtx
+    if brackets <= 0
+        then return $ Just "Unexpected bracket"
+        else putCtx (ctx { brackets = brackets - 1 }) >> return Nothing
 bracket _ = error "Wrong usage of bracket function"
 
 
-step :: State -> CT -> Either ErrorMsg (State, Char -> Action Brackets (Maybe ErrorMsg))
+step :: State -> CT -> Either ErrorMsg (State, Char -> Action Context (Maybe ErrorMsg))
 step ExprS Number = Right (NumberS, char)
 step ExprS OpenBracket = Right (OpenBracketS, bracket)
 step ExprS Letter = Right (VarS, char)
@@ -91,36 +134,36 @@ step OpenBracketS Space = Right (ExprS, pass)
 step OpenBracketS _ = Left "parse error on input"
 
 step CloseBracketS CloseBracket = Right (CloseBracketS, bracket)
-step CloseBracketS Space = Right (SpaceS, char)
+step CloseBracketS Space = Right (SpaceS, pass)
 step CloseBracketS Operator = Right (ExprS, operator)
 step CloseBracketS Minus = Right (ExprS, operator)
 step CloseBracketS _ = Left "parse error on input"
 
 step VarS Letter = Right (VarS, char)
 step VarS Number = Right (VarS, char)
-step VarS Space = Right (SpaceS, char)
+step VarS Space = Right (SpaceS, pass)
 step VarS Operator = Right (ExprS, operator)
 step VarS Minus = Right (ExprS, operator)
-step VarS CloseBracket = Right (CloseBracketS, bracket)
+step VarS CloseBracket = Right (CloseBracketS, \ c -> flush >> bracket c)
 step VarS _ = Left "Wrong variable symbol"
 
 step NumberS Number = Right (NumberS, char)
 step NumberS Dot = Right (DecimalS, char)
-step NumberS Space = Right (SpaceS, char)
+step NumberS Space = Right (SpaceS, pass)
 step NumberS Operator = Right (ExprS, operator)
 step NumberS Minus = Right (ExprS, operator)
-step NumberS CloseBracket = Right (CloseBracketS, bracket)
+step NumberS CloseBracket = Right (CloseBracketS, \ c -> flush >> bracket c)
 step NumberS _ = Left "integer constant error"
 
 step SpaceS Space = Right (SpaceS, pass)
-step SpaceS Operator = Right (ExprS, \c -> char c >> char ' ')
-step SpaceS Minus = Right (ExprS, \ _ -> char '-' >> char ' ')
-step SpaceS CloseBracket = Right (CloseBracketS, bracket)
+step SpaceS Operator = Right (ExprS, operator)
+step SpaceS Minus = Right (ExprS, operator)
+step SpaceS CloseBracket = Right (CloseBracketS, \ c -> flush >> bracket c)
 step SpaceS _ = Left "parse error on input"
 
 step DecimalS Number = Right (DecimalS, char)
-step DecimalS Space = Right (SpaceS, char)
-step DecimalS CloseBracket = Right (CloseBracketS, bracket)
+step DecimalS Space = Right (SpaceS, pass)
+step DecimalS CloseBracket = Right (CloseBracketS, \ c -> flush >> bracket c)
 step DecimalS Operator = Right (ExprS, operator)
 step DecimalS Minus = Right (ExprS, operator)
 step DecimalS _ = Left "float constant error"

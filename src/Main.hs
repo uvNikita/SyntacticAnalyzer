@@ -16,16 +16,17 @@ module Main (
     main
 ) where
 
-import Data.Text (Text, pack)
-import Data.Text.IO as TIO
-import System.Environment (getArgs)
+import           Data.Text (Text, pack)
+import qualified Data.Text.IO as TIO
+import           System.Environment (getArgs)
 
-import Analysis (parser)
-import FSM (runFSM, prettyError)
+import           Analysis (parser)
+import           FSM (runFSM, prettyError)
+import           Expression (render)
 
 
 parseExpr :: Text -> Text
-parseExpr input = either (prettyError input) (id) (runFSM parser input)
+parseExpr input = either (prettyError input) render (runFSM parser input)
 
 
 main :: IO ()

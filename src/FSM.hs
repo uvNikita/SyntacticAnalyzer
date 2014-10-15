@@ -21,7 +21,6 @@ module FSM (
     , Action
     , ErrorMsg
     , pass
-    , char
     , getCtx
     , putCtx
     , modifyCtx
@@ -44,28 +43,27 @@ prettyError :: Text -> ParseError -> Text
 prettyError input (ParseError idx msg) =
     T.concat [input, "\n", marker, "\n", arrow, "\n", pack . show $ idx, ": ", msg]
     where marker = T.justifyRight (idx + 1) ' ' "ʌ"
-          arrow = T.justifyRight (idx + 1) '─' "┘"
+          arrow  = T.justifyRight (idx + 1) '─' "┘"
 
 
-data FSM st ct ctx =
+data FSM st ct ctx res =
     FSM {
           initState :: st,
           isFinish :: st -> Bool,
           step :: st -> ct -> Either ErrorMsg (st, Char -> Action ctx (Maybe ErrorMsg)),
           initCtx :: ctx,
-          postProcess :: Action ctx (Maybe ErrorMsg)
+          getResult :: Action ctx (Either ErrorMsg res)
         }
 
 
 data SysContext =
     SysContext {
-                 result :: Text,
                  idx :: Int
                }
 
 
 initSysContext :: SysContext
-initSysContext = SysContext { result = "", idx = 0 }
+initSysContext = SysContext { idx = 0 }
 
 
 data Context uctx = Context SysContext uctx
@@ -80,13 +78,6 @@ class CharType a where
 
 pass :: Char -> Action uctx (Maybe ErrorMsg)
 pass _ = return Nothing
-
-
-char :: Char -> Action uctx (Maybe ErrorMsg)
-char c = do
-    Context sc@(SysContext {result}) uc <- get
-    put $ Context sc {result = T.snoc result c} uc
-    return Nothing
 
 
 incr :: Action uctx ()
@@ -114,7 +105,7 @@ modifyCtx f = do
     put $ Context sc uc'
 
 
-runFSM :: (CharType ct, Eq st) => FSM st ct ctx -> Text -> Either ParseError Text
+runFSM :: (CharType ct, Eq st) => FSM st ct ctx res -> Text -> Either ParseError res
 runFSM fsm input = case runResult of
                         Left err -> Left $ ParseError idx err
                         Right r -> Right r
@@ -128,13 +119,7 @@ runFSM fsm input = case runResult of
                   case r of
                       Right ns -> loop ns cs
                       Left err -> return $ Left err
-          finish state | isFinish fsm state = do
-                              err <- postProcess fsm
-                              case err of
-                                    Just emsg -> return $ Left emsg
-                                    Nothing -> do
-                                        Context (SysContext {result}) _ <- get
-                                        return $ Right result
+          finish state | isFinish fsm state = getResult fsm
                        | otherwise = return $ Left "Unexpected end of input"
           step' state c = do
               let ct = fromChar c
