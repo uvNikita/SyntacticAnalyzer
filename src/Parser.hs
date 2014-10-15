@@ -79,7 +79,8 @@ getResult = do
     err <- checkBrackets
     flush
     Context {result} <- getCtx
-    return $ maybe (Right result) Left err
+    let result' = E.reverse result
+    return $ maybe (Right result') Left err
 
 
 flush :: Action Context ()
