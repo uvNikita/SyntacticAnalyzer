@@ -20,7 +20,7 @@ import           Data.Text (Text, pack)
 import qualified Data.Text.IO as TIO
 import           System.Environment (getArgs)
 
-import           Analysis (parser)
+import           Parser (parser)
 import           FSM (runFSM, prettyError)
 import           Expression (render)
 

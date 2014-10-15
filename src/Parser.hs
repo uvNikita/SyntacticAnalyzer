@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Analysis
+-- Module      :  Parser
 -- Copyright   :
 -- License     :  AllRightsReserved
 --
@@ -13,7 +13,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Analysis (
+module Parser (
     parser
 ) where
 

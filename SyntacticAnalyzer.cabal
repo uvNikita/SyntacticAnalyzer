@@ -13,5 +13,5 @@ executable SyntacticAnalyzer
     buildable: True
     extensions: NamedFieldPuns OverloadedStrings
     hs-source-dirs: src
-    other-modules: FSM Analysis Expression
+    other-modules: FSM Parser Expression
     ghc-options: -Wall
