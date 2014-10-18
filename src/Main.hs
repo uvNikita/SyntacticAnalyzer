@@ -22,11 +22,11 @@ import           System.Environment (getArgs)
 
 import           Parser (parser)
 import           FSM (runFSM, prettyError)
-import           Expression (render)
+import           Expression (render, optimize)
 
 
 parseExpr :: Text -> Text
-parseExpr input = either (prettyError input) render (runFSM parser input)
+parseExpr input = either (prettyError input) (render . optimize) (runFSM parser input)
 
 
 main :: IO ()

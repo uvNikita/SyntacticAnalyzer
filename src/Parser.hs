@@ -26,6 +26,7 @@ import           FSM (FSM(FSM), CharType, ErrorMsg, Action, pass, getCtx, putCtx
 import qualified FSM
 import           Expression (RawExpr)
 import qualified Expression as E
+import qualified Operation as O
 
 
 data State = ExprS | NumberS | DecimalS | VarS | SpaceS |
@@ -93,12 +94,12 @@ flush = do
 append :: RawExpr -> Action Context ()
 append expr = do
     ctx@(Context { brackets, result }) <- getCtx
-    let newresult = E.append result expr brackets
+    let newresult = E.appendTo brackets result expr
     putCtx $ ctx { result = newresult }
 
 
 operator :: Char -> Action Context (Maybe ErrorMsg)
-operator o = flush >> append (E.Operator o) >> return Nothing
+operator o = flush >> append (E.Operator (O.fromChar o)) >> return Nothing
 
 char :: Char -> Action Context (Maybe ErrorMsg)
 char c = do
