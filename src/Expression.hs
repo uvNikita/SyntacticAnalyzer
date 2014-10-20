@@ -31,7 +31,7 @@ import qualified Data.Text as T
 import qualified Data.List as L
 import           Data.List (find)
 
-import           Operation (Operation(..), toChar)
+import           Operation (Operation(..), toChar, inverse)
 
 
 
@@ -40,7 +40,7 @@ data RawExpr = Operator Operation
              | RawExpr [RawExpr] deriving(Show, Eq)
 
 
-type SplitRule = (RawExpr, RawExpr, RawExpr) -> Bool
+type SplitRule = RawExpr -> Operation -> RawExpr -> Bool
 
 
 render :: RawExpr -> Text
@@ -66,42 +66,20 @@ reverse (RawExpr es) = RawExpr . map reverse . L.reverse $ es
 reverse e = e
 
 
-pairsPlus :: RawExpr -> RawExpr
-pairsPlus = pairs rule
-    where rule (Operand _, Operator Sum, Operand _) = True
-          rule _ = False
+pairs' :: Bool -> Operation -> SplitRule -> RawExpr -> RawExpr
+pairs' inv neg rule (RawExpr (e1 : sep@(Operator op) : e2 : rest))
+    | rule e1 op e2 = pairs' False neg rule (RawExpr rest) `append` RawExpr [e1, sep', e2]
+        where sep' = if inv then Operator (inverse op) else sep
+pairs' _ neg rule (RawExpr (e : es)) =
+    pairs'' (RawExpr es) `append` pairs'' e
+    where pairs'' = pairs' inv neg rule
+          inv = case e of
+                    Operator op -> op == neg
+                    _ -> False
+pairs' _ _ _ e = e
 
-
-pairsMul :: RawExpr -> RawExpr
-pairsMul = pairs rule
-    where rule (Operand _, Operator Mul, Operand _) = True
-          rule _ = False
-
-
-pairs :: SplitRule -> RawExpr -> RawExpr
-pairs rule (RawExpr (e1:sep:e2:rest))
-    | rule (e1, sep, e2) = pairs rule (RawExpr rest) `append` RawExpr [e1, sep, e2]
-pairs rule (RawExpr (e:es)) = pairs rule (RawExpr es) `append` pairs rule e
-pairs _ e = e
-
-
--- pdiv' :: RawExpr -> RawExpr
--- pdiv' rule (RawExpr (e1:sep:e2:rest))
---     | rule (e1, sep, e2) = pdiv' rule (RawExpr rest) `append` RawExpr [e1, sep, e2]
--- pdiv' rule (RawExpr (e:es)) = pdiv' rule (RawExpr es) `append` pdiv' rule e
--- pdiv' _ e = e
-
-
-splitPlus :: RawExpr -> RawExpr
-splitPlus = pairs rule
-    where rule (_, Operator Sum, _) = True
-          rule _ = False
-
-
-splitMul :: RawExpr -> RawExpr
-splitMul = pairs rule
-    where rule (_, Operator Mul, _) = True
-          rule _ = False
+pairs :: Operation -> SplitRule -> RawExpr -> RawExpr
+pairs = pairs' False
 
 
 apply :: (RawExpr -> RawExpr) -> RawExpr -> RawExpr
@@ -110,9 +88,33 @@ apply f expr = fst $ fromJust $ find same (zip es (tail es))
           same (prev, curr) = prev == curr
 
 optimize :: RawExpr -> RawExpr
-optimize = optimizePlus . optimizeMul
-    where optimizeMul  = apply (cleanup . splitMul . pairsMul)
-          optimizePlus = apply (cleanup . splitPlus . pairsPlus)
+optimize = optimizeLow . optimizeHigh
+    where optimizeLow  = apply (cleanup . splitLow . splitBasicLow)
+          optimizeHigh = apply (cleanup . splitHigh . splitBasicHigh)
+
+          pairsLow = pairs Diff
+          pairsHigh = pairs Div
+
+          splitBasicLow = pairsLow rule
+                where rule (Operand _) Sum  (Operand _) = True
+                      rule (Operand _) Diff (Operand _) = True
+                      rule _ _ _ = False
+
+          splitLow = pairsLow rule
+                where rule _ Sum  _ = True
+                      rule _ Diff _ = True
+                      rule _ _ _ = False
+
+          splitHigh = pairsHigh rule
+                where rule _ Mul _ = True
+                      rule _ Div _ = True
+                      rule _ _ _ = False
+
+          splitBasicHigh = pairsHigh rule
+                where rule (Operand _) Mul (Operand _) = True
+                      rule (Operand _) Div (Operand _) = True
+                      rule _ _ _ = False
+
 
 cleanup :: RawExpr -> RawExpr
 cleanup (RawExpr [e]) = cleanup e
