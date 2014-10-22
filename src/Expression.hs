@@ -68,8 +68,9 @@ reverse e = e
 
 pairs' :: Bool -> Operation -> SplitRule -> RawExpr -> RawExpr
 pairs' inv neg rule (RawExpr (e1 : sep@(Operator op) : e2 : rest))
-    | rule e1 op e2 = pairs' False neg rule (RawExpr rest) `append` RawExpr [e1, sep', e2]
+    | rule e1 op e2 = pairs'' (RawExpr rest) `append` RawExpr [pairs'' e1, sep', pairs'' e2]
         where sep' = if inv then Operator (inverse op) else sep
+              pairs'' = pairs' False neg rule
 pairs' _ neg rule (RawExpr (e : es)) =
     pairs'' (RawExpr es) `append` pairs'' e
     where pairs'' = pairs' inv neg rule
