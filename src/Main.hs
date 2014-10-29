@@ -18,7 +18,6 @@ module Main (
 
 import           Data.Text (Text, pack)
 import qualified Data.Text.IO as TIO
-import           System.Environment (getArgs)
 
 import           Parser (parser)
 import           FSM (runFSM, prettyError)
@@ -28,24 +27,43 @@ import           Tree (Tree)
 import qualified Expression as E
 import           Util (exprToTree)
 
-import Control.Monad.Trans (liftIO)
-import Diagrams.Backend.Cairo (Cairo)
-import Diagrams.Backend.Gtk (toGtkCoords, renderToGtk)
-import Diagrams.Prelude (Diagram, R2)
-import Graphics.UI.Gtk
+import           Control.Monad.Trans (liftIO)
+import           Diagrams.Backend.Cairo (Cairo)
+import           Diagrams.Backend.Gtk (toGtkCoords, renderToGtk)
+import           Diagrams.Prelude (Diagram, R2)
+import           Graphics.UI.Gtk hiding (Settings)
 
-main :: IO ()
+import           System.Console.ArgParser ( parsedBy, andBy, ParserSpec, Descr(..)
+                                          , mkApp, runApp, reqPos, boolFlag )
+
+
+data Settings = Settings { input :: String, nogui :: Bool } deriving (Show)
+
+
+argsParser :: ParserSpec Settings
+argsParser = Settings
+    `parsedBy` reqPos "expression" `Descr` "Expression to parse and analyze"
+    `andBy` boolFlag "no-gui" `Descr` "Run program in text mode"
+
+
+main :: IO()
 main = do
-    [in_] <- getArgs
-    let input = pack in_
-    case runFSM parser input of
-        Left err -> TIO.putStrLn $ prettyError input err
+    interface <- mkApp argsParser
+    runApp interface analyze
+
+
+analyze :: Settings -> IO ()
+analyze (Settings {nogui, input}) = do
+    let inputText = pack input
+    case runFSM parser inputText of
+        Left err -> TIO.putStrLn $ prettyError inputText err
         Right expr -> do
             let oexpr = optimize expr
             TIO.putStrLn $ E.render oexpr
             let tree = exprToTree oexpr
-            showGUI tree
-            showText tree
+            if nogui
+                then showText tree
+                else showGUI tree
 
 
 showText :: Show a => Tree a -> IO ()
