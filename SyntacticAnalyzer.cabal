@@ -8,7 +8,18 @@ description: Parser with lexical and syntactic analyses optimized for given para
 data-dir: ""
 
 executable SyntacticAnalyzer
-    build-depends: base -any, mtl -any, text -any, pretty-tree -any, containers -any
+    build-depends: base -any
+                 , mtl -any
+                 , text -any
+                 , pretty-tree -any
+                 , containers -any
+                 , gtk -any
+                 , diagrams -any
+                 , diagrams-lib -any
+                 , diagrams-core -any
+                 , diagrams-gtk -any
+                 , diagrams-cairo -any
+                 , diagrams-contrib -any
     main-is: Main.hs
     buildable: True
     extensions: NamedFieldPuns OverloadedStrings

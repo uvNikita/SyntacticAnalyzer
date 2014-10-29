@@ -90,8 +90,8 @@ apply f expr = fst $ fromJust $ find same (zip es (tail es))
 
 optimize :: RawExpr -> RawExpr
 optimize = optimizeLow . optimizeHigh
-    where optimizeLow  = apply (cleanup . splitLow . splitBasicLow)
-          optimizeHigh = apply (cleanup . splitHigh . splitBasicHigh)
+    where optimizeLow  = apply (cleanupBrackets . splitLow . splitBasicLow)
+          optimizeHigh = apply (cleanupBrackets . splitHigh . splitBasicHigh)
 
           pairsLow = pairs Diff
           pairsHigh = pairs Div
@@ -117,7 +117,10 @@ optimize = optimizeLow . optimizeHigh
                       rule _ _ _ = False
 
 
-cleanup :: RawExpr -> RawExpr
-cleanup (RawExpr [e]) = cleanup e
-cleanup (RawExpr es) = RawExpr (map cleanup es)
-cleanup e = e
+cleanupBrackets :: RawExpr -> RawExpr
+cleanupBrackets (RawExpr [e]) = cleanupBrackets e
+cleanupBrackets (RawExpr es) = RawExpr (map cleanupBrackets es)
+cleanupBrackets e = e
+
+
+cleanup = undefined
