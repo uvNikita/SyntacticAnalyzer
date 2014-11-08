@@ -16,11 +16,12 @@
 module Expression (
       RawExpr (..)
     , render
-    , append
-    , appendTo
+    , cons
+    , consTo
     , reverse
     , optimize
-    , cleanup
+    , calcTime
+    , append
 ) where
 
 
@@ -31,8 +32,7 @@ import qualified Data.Text as T
 import qualified Data.List as L
 import           Data.List (find)
 
-import           Operation (Operation(..), toChar, inverse)
-
+import           Operation (Operation(..), toChar, inverse, time)
 
 
 data RawExpr = Operator Operation
@@ -50,15 +50,20 @@ render (RawExpr es) = T.concat ["(", inner, ")"]
     where inner = T.concat . map render $ es
 
 
-appendTo :: Int -> RawExpr -> RawExpr -> RawExpr
-appendTo 0 (RawExpr es)       expr = RawExpr $ expr : es
-appendTo n (RawExpr (e : es)) expr = RawExpr $ new  : es
-    where new = appendTo (n - 1) e expr
-appendTo _ _ _ =  error "cannot append to this expression"
+consTo :: Int -> RawExpr -> RawExpr -> RawExpr
+consTo 0 expr (RawExpr es)       = RawExpr $ expr : es
+consTo n expr (RawExpr (e : es)) = RawExpr $ new  : es
+    where new = consTo (n - 1) expr e
+consTo _ _ _ =  error "cannot cons to this expression"
+
+
+cons :: RawExpr -> RawExpr -> RawExpr
+cons = consTo 0
 
 
 append :: RawExpr -> RawExpr -> RawExpr
-append = appendTo 0
+append (RawExpr e1) (RawExpr e2) = RawExpr $ e1 ++ e2
+append _ _ = error "can append only RawExprs"
 
 
 reverse :: RawExpr -> RawExpr
@@ -68,11 +73,11 @@ reverse e = e
 
 pairs' :: Bool -> Operation -> SplitRule -> RawExpr -> RawExpr
 pairs' inv neg rule (RawExpr (e1 : sep@(Operator op) : e2 : rest))
-    | rule e1 op e2 = pairs'' (RawExpr rest) `append` RawExpr [pairs'' e1, sep', pairs'' e2]
+    | rule e1 op e2 = RawExpr [pairs'' e1, sep', pairs'' e2] `cons` pairs'' (RawExpr rest)
         where sep' = if inv then Operator (inverse op) else sep
               pairs'' = pairs' False neg rule
 pairs' _ neg rule (RawExpr (e : es)) =
-    pairs'' (RawExpr es) `append` pairs'' e
+    pairs'' e `cons` pairs'' (RawExpr es)
     where pairs'' = pairs' inv neg rule
           inv = case e of
                     Operator op -> op == neg
@@ -93,28 +98,28 @@ optimize = optimizeLow . optimizeHigh
     where optimizeLow  = apply (cleanupBrackets . splitLow . splitBasicLow)
           optimizeHigh = apply (cleanupBrackets . splitHigh . splitBasicHigh)
 
-          pairsLow = pairs Diff
+          pairsLow  = pairs Diff
           pairsHigh = pairs Div
 
           splitBasicLow = pairsLow rule
                 where rule (Operand _) Sum  (Operand _) = True
                       rule (Operand _) Diff (Operand _) = True
-                      rule _ _ _ = False
+                      rule _ _ _                        = False
 
           splitLow = pairsLow rule
                 where rule _ Sum  _ = True
                       rule _ Diff _ = True
-                      rule _ _ _ = False
+                      rule _ _ _    = False
 
           splitHigh = pairsHigh rule
                 where rule _ Mul _ = True
                       rule _ Div _ = True
-                      rule _ _ _ = False
+                      rule _ _ _   = False
 
           splitBasicHigh = pairsHigh rule
                 where rule (Operand _) Mul (Operand _) = True
                       rule (Operand _) Div (Operand _) = True
-                      rule _ _ _ = False
+                      rule _ _ _                       = False
 
 
 cleanupBrackets :: RawExpr -> RawExpr
@@ -123,4 +128,27 @@ cleanupBrackets (RawExpr es) = RawExpr (map cleanupBrackets es)
 cleanupBrackets e = e
 
 
-cleanup = undefined
+calcTime :: RawExpr -> Int
+calcTime (Operand  _) = 0
+calcTime (Operator o) = time o
+calcTime (RawExpr es) = sum . map calcTime $ es
+
+
+-- commutative :: RawExpr -> [RawExpr]
+-- commutative (RawExpr es) = [RawExpr $ sortBy (compare `on` calcTime) es]
+-- commutative e = [e]
+
+
+-- cleanup :: RawExpr -> RawExpr
+-- cleanup = cleanupBrackets . cleanupOnes
+--
+-- cleanupOnes :: RawExpr -> RawExpr
+-- cleanupOnes (RawExpr (Operand o1 : Operator op : Operand o2 : rest)) =
+--     case (o1, op, o2) of
+--         ("0", Sum, _  ) -> cleanupOnes $ RawExpr (Operand o2 : rest)
+--         (_  , Sum, "0") -> cleanupOnes $ RawExpr (Operand o1 : rest)
+--         ("1", Mul, _  ) -> cleanupOnes $ RawExpr (Operand o2 : rest)
+--         (_  , Mul, "1") -> cleanupOnes $ RawExpr (Operand o1 : rest)
+--         _               -> part `append` cleanupOnes (RawExpr (Operand o2:rest))
+--             where part = RawExpr [Operand o1, Operator op]
+-- cleanupOnes e = e

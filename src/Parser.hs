@@ -94,7 +94,7 @@ flush = do
 append :: RawExpr -> Action Context ()
 append expr = do
     ctx@(Context { brackets, result }) <- getCtx
-    let newresult = E.appendTo brackets result expr
+    let newresult = E.consTo brackets expr result
     putCtx $ ctx { result = newresult }
 
 

@@ -59,8 +59,8 @@ analyze (Settings {nogui, input}) = do
         Left err -> TIO.putStrLn $ prettyError inputText err
         Right expr -> do
             let oexpr = optimize expr
-            TIO.putStrLn $ E.render oexpr
             let tree = exprToTree oexpr
+            TIO.putStrLn $ E.render oexpr
             if nogui
                 then showText tree
                 else showGUI tree
