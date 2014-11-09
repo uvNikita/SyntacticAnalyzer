@@ -27,6 +27,7 @@ import qualified FSM
 import           Expression (RawExpr)
 import qualified Expression as E
 import qualified Operation as O
+import           Operation (Operation( Sum ))
 
 
 data State = ExprS | NumberS | DecimalS | VarS | SpaceS |
@@ -41,6 +42,7 @@ data Context =
     Context {
               brackets :: Int,
               operand :: Text,
+              operation :: Operation,
               result :: RawExpr
             }
 
@@ -70,7 +72,10 @@ parser = FSM {
     FSM.initState = ExprS,
     FSM.isFinish = isFinish,
     FSM.step = step,
-    FSM.initCtx = Context { brackets = 0, result = E.RawExpr [], operand = "" },
+    FSM.initCtx = Context { brackets = 0
+                          , result = E.RawExpr Sum (E.Brackets [])
+                          , operand = ""
+                          , operation = Sum},
     FSM.getResult = getResult
 }
 
@@ -86,9 +91,9 @@ getResult = do
 
 flush :: Action Context ()
 flush = do
-    Context { operand } <- getCtx
-    when (operand /= "") $ append (E.Operand operand)
-    modifyCtx (\ ctx -> ctx { operand = "" })
+    Context { operand, operation } <- getCtx
+    when (operand /= "") $ append (E.RawExpr operation (E.Term operand))
+    modifyCtx (\ ctx -> ctx { operand = "", operation = Sum })
 
 
 append :: RawExpr -> Action Context ()
@@ -99,7 +104,11 @@ append expr = do
 
 
 operator :: Char -> Action Context (Maybe ErrorMsg)
-operator o = flush >> append (E.Operator (O.fromChar o)) >> return Nothing
+operator o = do
+    flush
+    modifyCtx (\ ctx -> ctx { operation = O.fromChar o })
+    return Nothing
+
 
 char :: Char -> Action Context (Maybe ErrorMsg)
 char c = do
@@ -109,12 +118,14 @@ char c = do
 
 bracket :: Char -> Action Context (Maybe ErrorMsg)
 bracket '(' = do
-    append (E.RawExpr [])
-    modifyCtx (\ ctx@(Context { brackets }) -> ctx { brackets = brackets + 1 })
+    Context { operation } <- getCtx
+    append (E.RawExpr operation (E.Brackets []))
+    modifyCtx (\ ctx@(Context { brackets }) -> ctx { operation = Sum
+                                                   , brackets = brackets + 1 })
     return Nothing
 
 bracket ')' = do
-    ctx@(Context {brackets}) <- getCtx
+    ctx@(Context { brackets }) <- getCtx
     if brackets <= 0
         then return $ Just "Unexpected bracket"
         else putCtx (ctx { brackets = brackets - 1 }) >> return Nothing

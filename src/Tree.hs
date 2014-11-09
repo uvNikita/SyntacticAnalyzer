@@ -23,7 +23,6 @@ module Tree (
 import           Data.Tree.Pretty (drawVerticalTree)
 import qualified Data.Tree as NT
 import           Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
 
 import           Data.Monoid ((<>))
 import           Diagrams.Prelude (Diagram, (#), fc, white, text, (~~)

@@ -17,6 +17,7 @@ module Operation (
       Operation (..)
     , fromChar
     , inverse
+    , negFor
     , toChar
     , time
 ) where
@@ -29,6 +30,12 @@ inverse Mul  = Div
 inverse Div  = Mul
 inverse Sum  = Diff
 inverse Diff = Sum
+
+
+negFor :: Operation -> Operation -> Bool
+negFor Mul Div = True
+negFor Sum Diff = True
+negFor _ _ = False
 
 
 time :: Operation -> Int

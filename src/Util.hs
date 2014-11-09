@@ -20,15 +20,19 @@ module Util (
 import           Data.Text (Text, pack)
 
 import           Tree (Tree(..))
-import           Expression (RawExpr(..))
+import           Expression (RawExpr(..), Elem(..))
 import           Operation (toChar)
 
 
+elemToTree :: Elem -> Tree Text
+elemToTree (Term name) = Leaf name
+elemToTree (Brackets [RawExpr _ e1, RawExpr op e2]) =
+    Branch root left right
+    where root  = pack [toChar op]
+          left  = elemToTree e1
+          right = elemToTree e2
+elemToTree _ = error "Non binary expression."
+
+
 exprToTree :: RawExpr -> Tree Text
-exprToTree (Operator op) = Leaf $ pack [toChar op]
-exprToTree (Operand  op) = Leaf op
-exprToTree (RawExpr [e1, Operator op, e2]) = Branch root left right
-    where root = pack [toChar op]
-          left = exprToTree e1
-          right = exprToTree e2
-exprToTree _ = error "Non binary expression."
+exprToTree (RawExpr _ e) = elemToTree e
