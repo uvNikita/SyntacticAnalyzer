@@ -21,6 +21,7 @@ module Expression (
     , consTo
     , reverse
     , optimize
+    , commutative
 ) where
 
 
@@ -29,7 +30,8 @@ import           Data.Text (Text)
 import           Data.Maybe (fromJust)
 import qualified Data.Text as T
 import qualified Data.List as L
-import           Data.List (find)
+import           Data.List (find, sortBy)
+import           Data.Function (on)
 
 import qualified Operation as O
 import           Operation (Operation(..), toChar)
@@ -84,6 +86,7 @@ pairs on (RawExpr op (Brackets es)) = RawExpr op new
                     es'  -> Brackets es'
 pairs _ e = e
 
+
 apply :: (RawExpr -> RawExpr) -> RawExpr -> RawExpr
 apply f expr = fst . fromJust . find same $ zip es (tail es)
     where es = iterate f expr
@@ -91,3 +94,35 @@ apply f expr = fst . fromJust . find same $ zip es (tail es)
 
 optimize :: RawExpr -> RawExpr
 optimize = apply (pairs Sum) . apply (pairs Mul)
+
+
+splitTerms' :: [RawExpr] -> [RawExpr]
+splitTerms' (e1@(RawExpr op1 _) : e2 : rest)
+    | isTerm e2 = term : terms
+    | otherwise = splitTerms e1 : splitTerms' (e2 : rest)
+    where (restTerm, rest') = span isTerm rest
+          term  = RawExpr op1 (Brackets $ [splitTerms e1, splitTerms e2] ++ restTerm)
+          terms = splitTerms' rest'
+          isTerm (RawExpr op _) = op == Mul || op == Div
+splitTerms' [e] = [splitTerms e]
+splitTerms' []  = []
+
+
+splitTerms :: RawExpr -> RawExpr
+splitTerms (RawExpr op (Brackets es)) = RawExpr op (Brackets (splitTerms' es))
+splitTerms e = e
+
+
+weight' :: [RawExpr] -> Int
+weight' (e1@(RawExpr op _) : es) = O.time op + weight e1 + weight' es
+weight' []  = 0
+
+
+weight :: RawExpr -> Int
+weight (RawExpr op (Term name)) = 0
+weight (RawExpr op (Brackets (e:es))) = weight e + weight' es
+
+
+commutative :: RawExpr -> [RawExpr]
+commutative (RawExpr op (Brackets e)) =
+    [ RawExpr op (Brackets $ sortBy (compare `on` weight) (splitTerms' e)) ]

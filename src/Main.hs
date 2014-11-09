@@ -16,12 +16,12 @@ module Main (
     main
 ) where
 
-import           Data.Text (Text, pack)
+import           Data.Text (Text, pack, intercalate)
 import qualified Data.Text.IO as TIO
 
 import           Parser (parser)
 import           FSM (runFSM, prettyError)
-import           Expression (optimize)
+import           Expression (optimize, commutative)
 import qualified Tree
 import           Tree (Tree)
 import qualified Expression as E
@@ -30,7 +30,7 @@ import           Util (exprToTree)
 import           Control.Monad.Trans (liftIO)
 import           Diagrams.Backend.Cairo (Cairo)
 import           Diagrams.Backend.Gtk (toGtkCoords, renderToGtk)
-import           Diagrams.Prelude (Diagram, R2)
+import           Diagrams.Prelude (Diagram, R2, hcat)
 import           Graphics.UI.Gtk hiding (Settings)
 
 import           System.Console.ArgParser ( parsedBy, andBy, ParserSpec, Descr(..)
@@ -58,26 +58,28 @@ analyze (Settings {nogui, input}) = do
     case runFSM parser inputText of
         Left err -> TIO.putStrLn $ prettyError inputText err
         Right expr -> do
-            let oexpr = optimize expr
-            let tree = exprToTree oexpr
-            TIO.putStrLn $ E.render oexpr
+            let comms = map optimize . commutative $ expr
+            let orig  = optimize expr
+            let trees = map exprToTree (orig : comms)
+            TIO.putStrLn $ E.render orig
             if nogui
-                then showText tree
-                else showGUI tree
+                then showText trees
+                else showGUI trees
 
 
-showText :: Show a => Tree a -> IO ()
-showText tree = TIO.putStrLn $ Tree.renderAsText tree
+showText :: Show a => [Tree a] -> IO ()
+showText = TIO.putStrLn . intercalate "\n" . map Tree.renderAsText
 
 
-showGUI :: Tree Text -> IO ()
-showGUI tree = do
-    let diagram = Tree.renderAsDiagram tree
+showGUI :: [Tree Text] -> IO ()
+showGUI trees = do
+    let diagrams = map Tree.renderAsDiagram trees
+    let diagram = hcat (diagrams ++ diagrams)
     _ <- initGUI
     window <- windowNew
     scroll <- scrolledWindowNew Nothing Nothing
     canvas <- drawingAreaNew
-    _ <- canvas `on` sizeRequest $ return (Requisition 512 512)
+    _ <- canvas `on` sizeRequest $ return (Requisition 2048 2048)
     scrolledWindowAddWithViewport scroll canvas
     set window [windowDefaultWidth := 256, windowDefaultHeight := 256
               , containerBorderWidth := 10
