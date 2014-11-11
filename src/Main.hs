@@ -23,9 +23,9 @@ import           Parser (parser)
 import           FSM (runFSM, prettyError)
 import           Expression (optimize, commutative)
 import qualified Tree
-import           Tree (Tree)
+import           Tree (exprToTree)
+import           Data.Tree (Tree)
 import qualified Expression as E
-import           Util (exprToTree)
 
 import           Control.Monad.Trans (liftIO)
 import           Diagrams.Backend.Cairo (Cairo)
@@ -61,7 +61,7 @@ analyze (Settings {nogui, input}) = do
             let comms = map optimize . commutative $ expr
             let orig  = optimize expr
             let trees = map exprToTree (orig : comms)
-            TIO.putStrLn $ E.render orig
+            TIO.putStrLn . intercalate "\n" . map E.render $ (orig : comms)
             if nogui
                 then showText trees
                 else showGUI trees

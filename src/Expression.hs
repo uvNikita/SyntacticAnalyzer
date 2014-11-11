@@ -46,8 +46,11 @@ render = T.tail . render'
 
 render' :: RawExpr -> Text
 render' (RawExpr op (Term name))   = toChar op `T.cons` name
-render' (RawExpr op (Brackets es)) = toChar op `T.cons` T.concat ["(", T.tail inner, ")"]
+render' (RawExpr op (Brackets es)) = toChar op `T.cons` T.concat ["(", inner', ")"]
     where inner = T.concat . map render' $ es
+          inner' = case T.head inner of
+                       '+' -> T.tail inner
+                       _   -> inner
 
 
 consTo :: Int -> RawExpr -> RawExpr -> RawExpr
@@ -68,20 +71,29 @@ reverse e = e
 inverse :: RawExpr -> RawExpr
 inverse (RawExpr op e) = RawExpr (O.inverse op) e
 
+
+unsign :: RawExpr -> RawExpr
+unsign (RawExpr _ e) = RawExpr Sum e
+
+
 pairsB :: Operation -> [RawExpr] -> [RawExpr]
-pairsB on (e1@(RawExpr op1 _) : e2@(RawExpr op2 _) : rest)
-    | op2 == on || op2 == O.inverse on = new : pairsB on rest
-    | otherwise                        = pairs on e1 : pairsB on (e2 : rest)
-    where new = if O.negFor on op1
-                    then RawExpr op1 (Brackets [ pairs on (inverse e1)
-                                               , pairs on (inverse e2) ])
-                    else RawExpr op1 (Brackets [pairs on e1, pairs on e2])
-pairsB on [e] = [pairs on e]
+pairsB by (e1@(RawExpr op1 _) : e2@(RawExpr op2 _) : rest)
+    | op2 == by || op2 == O.inverse by = new : pairsB by rest
+    | otherwise                        = pairs by e1 : pairsB by (e2 : rest)
+    where new = if O.negFor by op1
+                    then RawExpr op1 (Brackets [ pairs by (unsign e1)
+                                               , pairs by (inverse e2) ])
+                    else RawExpr op1 (Brackets [ pairs by (unsign e1)
+                                               , pairs by e2])
+pairsB by [e] = [pairs by e]
 pairsB _ []   = []
 
 pairs :: Operation -> RawExpr -> RawExpr
-pairs on (RawExpr op (Brackets es)) = RawExpr op new
-    where new = case pairsB on es of
+pairs by (RawExpr op (Brackets [e1, e2])) =
+    RawExpr op (Brackets [ pairs by e1, pairs by e2 ])
+pairs by (RawExpr op (Brackets es)) = RawExpr op new
+    where new = case pairsB by es of
+                    es'@[RawExpr Diff _] -> Brackets es'
                     [RawExpr _ e] -> e
                     es'  -> Brackets es'
 pairs _ e = e
@@ -101,7 +113,7 @@ splitTerms' (e1@(RawExpr op1 _) : e2 : rest)
     | isTerm e2 = term : terms
     | otherwise = splitTerms e1 : splitTerms' (e2 : rest)
     where (restTerm, rest') = span isTerm rest
-          term  = RawExpr op1 (Brackets $ [splitTerms e1, splitTerms e2] ++ restTerm)
+          term  = RawExpr op1 (Brackets $ [splitTerms (unsign e1), splitTerms e2] ++ restTerm)
           terms = splitTerms' rest'
           isTerm (RawExpr op _) = op == Mul || op == Div
 splitTerms' [e] = [splitTerms e]
@@ -119,10 +131,12 @@ weight' []  = 0
 
 
 weight :: RawExpr -> Int
-weight (RawExpr op (Term name)) = 0
-weight (RawExpr op (Brackets (e:es))) = weight e + weight' es
+weight (RawExpr _ (Term _)) = 0
+weight (RawExpr _ (Brackets [])) = 0
+weight (RawExpr _ (Brackets (e:es))) = weight e + weight' es
 
 
 commutative :: RawExpr -> [RawExpr]
+commutative e@(RawExpr _ (Term _)) = [e]
 commutative (RawExpr op (Brackets e)) =
     [ RawExpr op (Brackets $ sortBy (compare `on` weight) (splitTerms' e)) ]

@@ -14,14 +14,14 @@
 -----------------------------------------------------------------------------
 
 module Tree (
-      Tree (..)
+      exprToTree
     , renderAsText
     , renderAsDiagram
 ) where
 
 
 import           Data.Tree.Pretty (drawVerticalTree)
-import qualified Data.Tree as NT
+import           Data.Tree (Tree(..))
 import           Data.Text (Text, pack, unpack)
 
 import           Data.Monoid ((<>))
@@ -33,17 +33,38 @@ import           Diagrams.Core.Types (Backend, Renderable)
 import           Diagrams.Path (Path)
 import qualified Diagrams.TwoD.Text as DText
 
+import           Expression (RawExpr(..), Elem(..))
+import           Operation (toChar, Operation(..))
 
-data Tree a = Leaf a | Branch a (Tree a) (Tree a) deriving (Show)
+
+unaryMinusNode :: Elem -> Tree Text
+unaryMinusNode e = Node minus [leaf]
+  where minus = pack [toChar Diff]
+        leaf = elemToTree e
 
 
-toNTree :: Tree a -> NT.Tree a
-toNTree (Leaf a) = NT.Node a []
-toNTree (Branch a left right) = NT.Node a [toNTree left, toNTree right]
+elemToTree :: Elem -> Tree Text
+elemToTree (Term name) = Node name []
+elemToTree (Brackets [RawExpr Diff e1]) = unaryMinusNode e1
+elemToTree (Brackets [RawExpr Diff e1, RawExpr op e2]) =
+    Node root [left, right]
+    where root  = pack [toChar op]
+          left  = unaryMinusNode e1
+          right = elemToTree e2
+elemToTree (Brackets [RawExpr _ e1, RawExpr op e2]) =
+    Node root [left, right]
+    where root  = pack [toChar op]
+          left  = elemToTree e1
+          right = elemToTree e2
+elemToTree _ = error "Non binary expression."
+
+
+exprToTree :: RawExpr -> Tree Text
+exprToTree (RawExpr _ e) = elemToTree e
 
 
 renderAsText :: (Show a) => Tree a -> Text
-renderAsText = pack . drawVerticalTree . fmap show . toNTree
+renderAsText = pack . drawVerticalTree . fmap show
 
 
 -- renderExpr (Leaf o) = o
@@ -54,7 +75,7 @@ renderAsDiagram :: (Renderable DText.Text b
                   , Renderable (Path R2) b
                   , Backend b R2)
                  => Tree Text -> Diagram b R2
-renderAsDiagram = enchance . render . toNTree
+renderAsDiagram = enchance . render
     where enchance = scale 10 . pad 1.1 . centerXY
           render tree = renderTree renderNode renderEdge layout
               where layout = symmLayout' (with & slHSep .~ 4 & slVSep .~ 4) tree
