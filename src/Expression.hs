@@ -30,7 +30,7 @@ import           Data.Text (Text)
 import           Data.Maybe (fromJust)
 import qualified Data.Text as T
 import qualified Data.List as L
-import           Data.List (find, sortBy)
+import           Data.List (find, sortBy, groupBy, permutations)
 import           Data.Function (on)
 
 import qualified Operation as O
@@ -136,7 +136,15 @@ weight (RawExpr _ (Brackets [])) = 0
 weight (RawExpr _ (Brackets (e:es))) = weight e + weight' es
 
 
+commutative' :: [RawExpr] -> [[RawExpr]]
+commutative' es = map concat variants
+    where sorted = sortBy (compare `on` weight) (splitTerms' es)
+          grouped = groupBy ((==) `on` weight) sorted
+          perms = map permutations grouped
+          variants = sequence perms
+
+
 commutative :: RawExpr -> [RawExpr]
 commutative e@(RawExpr _ (Term _)) = [e]
-commutative (RawExpr op (Brackets e)) =
-    [ RawExpr op (Brackets $ sortBy (compare `on` weight) (splitTerms' e)) ]
+commutative (RawExpr op (Brackets es)) = map brackets . commutative' $ es
+    where brackets = RawExpr op . Brackets

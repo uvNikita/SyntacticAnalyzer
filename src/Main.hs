@@ -74,7 +74,7 @@ showText = TIO.putStrLn . intercalate "\n" . map Tree.renderAsText
 showGUI :: [Tree Text] -> IO ()
 showGUI trees = do
     let diagrams = map Tree.renderAsDiagram trees
-    let diagram = hcat (diagrams ++ diagrams)
+    let diagram = hcat diagrams
     _ <- initGUI
     window <- windowNew
     scroll <- scrolledWindowNew Nothing Nothing
