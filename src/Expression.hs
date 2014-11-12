@@ -139,9 +139,10 @@ weight (RawExpr _ (Brackets (e:es))) = weight e + weight' es
 commutative' :: [RawExpr] -> [[RawExpr]]
 commutative' es = map concat variants
     where sorted = sortBy (compare `on` weight) (splitTerms' es)
-          grouped = groupBy ((==) `on` weight) sorted
+          (zeros, rest) = span ((== 0) . weight) sorted -- do not need to permutate zero-weight terms
+          grouped = groupBy ((==) `on` weight) rest
           perms = map permutations grouped
-          variants = sequence perms
+          variants = sequence ([zeros] : perms)
 
 
 commutative :: RawExpr -> [RawExpr]

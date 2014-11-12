@@ -30,7 +30,7 @@ import qualified Expression as E
 import           Control.Monad.Trans (liftIO)
 import           Diagrams.Backend.Cairo (Cairo)
 import           Diagrams.Backend.Gtk (toGtkCoords, renderToGtk)
-import           Diagrams.Prelude (Diagram, R2, hcat)
+import           Diagrams.Prelude (Diagram, R2, hcat, (===))
 import           Graphics.UI.Gtk hiding (Settings)
 
 import           System.Console.ArgParser ( parsedBy, andBy, ParserSpec, Descr(..)
@@ -74,7 +74,9 @@ showText = TIO.putStrLn . intercalate "\n" . map Tree.renderAsText
 showGUI :: [Tree Text] -> IO ()
 showGUI trees = do
     let diagrams = map Tree.renderAsDiagram trees
-    let diagram = hcat diagrams
+    let (ds1, ds2) = splitAt ((length diagrams + 1) `div` 2) diagrams
+    let (row1, row2) = (hcat ds1, hcat ds2)
+    let diagram = row1 === row2
     _ <- initGUI
     window <- windowNew
     scroll <- scrolledWindowNew Nothing Nothing
