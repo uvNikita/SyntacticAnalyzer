@@ -22,6 +22,8 @@ module Expression (
     , reverse
     , optimize
     , commutative
+    , openBrackets
+    , splitTerms
 ) where
 
 
@@ -99,10 +101,9 @@ pairs by (RawExpr op (Brackets es)) = RawExpr op new
 pairs _ e = e
 
 
-apply :: (RawExpr -> RawExpr) -> RawExpr -> RawExpr
-apply f expr = fst . fromJust . find same $ zip es (tail es)
-    where es = iterate f expr
-          same (prev, curr) = prev == curr
+apply :: Eq c => (c -> c) -> c -> c
+apply f = last . takeWhile2 (/=) . iterate f
+
 
 optimize :: RawExpr -> RawExpr
 optimize = apply (pairs Sum) . apply (pairs Mul)
@@ -121,7 +122,11 @@ splitTerms' []  = []
 
 
 splitTerms :: RawExpr -> RawExpr
-splitTerms (RawExpr op (Brackets es)) = RawExpr op (Brackets (splitTerms' es))
+splitTerms (RawExpr op (Brackets es)) = RawExpr op splited
+    where splited = case splitTerms' es of
+                        es'@[RawExpr Diff _] -> Brackets es'
+                        [RawExpr _ e] -> e
+                        es'  -> Brackets es'
 splitTerms e = e
 
 
@@ -149,3 +154,66 @@ commutative :: RawExpr -> [RawExpr]
 commutative e@(RawExpr _ (Term _)) = [e]
 commutative (RawExpr op (Brackets es)) = map brackets . commutative' $ es
     where brackets = RawExpr op . Brackets
+
+
+-- mulTerm (RawExpr op1 el1) (RawExpr op2 el2 : rterm)
+--     | op1 == op2 = RawExpr Sum el1  : RawExpr Mul el2 : rterm
+--     | otherwise  = RawExpr Diff el1 : RawExpr Mul el2 : rterm
+
+mulOp Sum  Diff = Diff
+mulOp Diff Sum  = Diff
+mulOp Sum  Sum  = Sum
+mulOp Diff Diff = Sum
+mulOp _    _    = error "Try to multiply wrong operations"
+
+-- mul :: RawExpr -> RawExpr -> RawExpr
+-- mul (RawExpr op1 t1@(Term _)) (RawExpr op2 t2@(Term _)) =
+--     RawExpr (mulOp op1 op2) (Brackets [t1, t2])
+-- mul (RawExpr op1 t1(Term _)) (RawExpr op2 (Brackets brs)) =
+--     RawExpr (mulOp op1 op2) (
+
+-- openBrackets :: RawExpr -> RawExpr
+-- openBrackets (RawExpr op (Brackets es) = RawExpr op (Brackets openBrackets es)
+-- openBrackets e = e
+
+-- mulTerm :: RawExpr -> RawExpr -> RawExpr
+-- mulTerm (RawExpr op1 e1) (RawExpr op2 e2@(Term _)) =
+--     RawExpr (mulOp op1 op2) (Brackets [RawExpr Sum e1, RawExpr Mul e2])
+-- mulTerm (RawExpr op1 e1) (RawExpr op2 (Brackets (RawExpr opb eb : es))) =
+--     RawExpr (mulOp op1 op2) (Brackets (RawExpr opb e1 : RawExpr Mul eb : es))
+
+mulTerm :: RawExpr -> RawExpr -> RawExpr
+mulTerm (RawExpr op1 e1) (RawExpr op2 e2@(Term _)) =
+    RawExpr (mulOp op1 op2) (Brackets [RawExpr Sum e1, RawExpr Mul e2])
+mulTerm (RawExpr op1 e1) (RawExpr op2 (Brackets (RawExpr opb eb : es))) =
+    RawExpr (mulOp op1 op2) (Brackets (RawExpr opb e1 : RawExpr Mul eb : es))
+
+
+openOneBracket' :: [RawExpr] -> [RawExpr]
+openOneBracket' (RawExpr op1 e1 : RawExpr Mul (Brackets es) : rest) =
+    RawExpr op1 (Brackets (open es)) : rest
+    where open = map (mulTerm (RawExpr Sum e1)) . splitTerms'
+openOneBracket' (RawExpr op1 (Brackets es) : RawExpr Mul e2 : rest) =
+    openOneBracket' swapped
+    where swapped = RawExpr op1 e2 : RawExpr Mul (Brackets es) : rest
+openOneBracket' (old@(RawExpr op (Brackets es)) : rest) =
+    if es' == es
+        then old : openOneBracket' rest
+        else new : rest
+    where es' = openOneBracket' es
+          new = RawExpr op (Brackets es')
+openOneBracket' (e:es) = e : openOneBracket' es
+openOneBracket' []     = []
+
+takeWhile2 :: (a -> a -> Bool) -> [a] -> [a]
+takeWhile2 p (x:ys@(y:_))
+  | p x y     = x : takeWhile2 p ys
+  | otherwise = [x]
+takeWhile2 _ [x] = [x]
+takeWhile2 _ [] = []
+
+
+openBrackets (RawExpr op (Brackets es)) = map brackets variants
+    where brackets = RawExpr op . Brackets
+          variants = tail $ takeWhile2 (/=) .  iterate openOneBracket' $ es
+openBrackets e = [e]

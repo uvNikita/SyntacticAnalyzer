@@ -18,10 +18,11 @@ module Main (
 
 import           Data.Text (Text, pack, intercalate)
 import qualified Data.Text.IO as TIO
+import           Data.List.Split (chunksOf)
 
 import           Parser (parser)
 import           FSM (runFSM, prettyError)
-import           Expression (optimize, commutative)
+import           Expression (optimize, commutative, openBrackets)
 import qualified Tree
 import           Tree (exprToTree)
 import           Data.Tree (Tree)
@@ -30,7 +31,8 @@ import qualified Expression as E
 import           Control.Monad.Trans (liftIO)
 import           Diagrams.Backend.Cairo (Cairo)
 import           Diagrams.Backend.Gtk (toGtkCoords, renderToGtk)
-import           Diagrams.Prelude (Diagram, R2, hcat, (===))
+import           Diagrams.TwoD.Align (alignT, centerXY)
+import           Diagrams.Prelude (Diagram, R2, hcat, vcat, text, scale, pad)
 import           Graphics.UI.Gtk hiding (Settings)
 
 import           System.Console.ArgParser ( parsedBy, andBy, ParserSpec, Descr(..)
@@ -59,24 +61,52 @@ analyze (Settings {nogui, input}) = do
         Left err -> TIO.putStrLn $ prettyError inputText err
         Right expr -> do
             let comms = map optimize . commutative $ expr
+            let brackets = concatMap (map optimize . openBrackets) comms
             let orig  = optimize expr
-            let trees = map exprToTree (orig : comms)
-            TIO.putStrLn . intercalate "\n" . map E.render $ (orig : comms)
+            let origTree  = exprToTree orig
+            let commTrees = map exprToTree comms
+            let bracketsTrees = map exprToTree brackets
+            showTextExprs orig comms brackets
             if nogui
-                then showText trees
-                else showGUI trees
+                then showTextTrees origTree commTrees bracketsTrees
+                else showGUITrees origTree commTrees bracketsTrees
 
 
-showText :: Show a => [Tree a] -> IO ()
-showText = TIO.putStrLn . intercalate "\n" . map Tree.renderAsText
+showTextExprs :: E.RawExpr -> [E.RawExpr] -> [E.RawExpr] -> IO ()
+showTextExprs orig comms brackets = do
+    TIO.putStrLn "Original:"
+    TIO.putStrLn (E.render orig)
+    TIO.putStrLn "Commutative Law:"
+    TIO.putStrLn . intercalate "\n" . map E.render $ comms
+    TIO.putStrLn "Open Brackets:"
+    TIO.putStrLn . intercalate "\n" . map E.render $ brackets
 
 
-showGUI :: [Tree Text] -> IO ()
-showGUI trees = do
-    let diagrams = map Tree.renderAsDiagram trees
-    let (ds1, ds2) = splitAt ((length diagrams + 1) `div` 2) diagrams
-    let (row1, row2) = (hcat ds1, hcat ds2)
-    let diagram = row1 === row2
+showTextTrees :: Show a => Tree a -> [Tree a] -> [Tree a] -> IO ()
+showTextTrees orig comms brackets = do
+    TIO.putStrLn "Original:"
+    TIO.putStrLn (Tree.renderAsText orig)
+    TIO.putStrLn "Commutative Law:"
+    TIO.putStrLn . intercalate "\n" . map Tree.renderAsText $ comms
+    TIO.putStrLn "Open Brackets:"
+    TIO.putStrLn . intercalate "\n" . map Tree.renderAsText $ brackets
+
+
+writeText = scale 12 . pad 2.1 . centerXY . text
+
+
+rows n = vcat . map (hcat . map alignT) . chunksOf n
+
+
+showGUITrees :: Tree Text -> [Tree Text] -> [Tree Text] -> IO ()
+showGUITrees orig comms brackets = do
+    let diagram = vcat [ writeText "Original"
+                       , Tree.renderAsDiagram orig
+                       , writeText "Commutative Law"
+                       , rows 2 . map Tree.renderAsDiagram $ comms
+                       , writeText "Open Brackets"
+                       , rows 2 . map Tree.renderAsDiagram $ brackets ]
+
     _ <- initGUI
     window <- windowNew
     scroll <- scrolledWindowNew Nothing Nothing

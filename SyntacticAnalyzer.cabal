@@ -13,6 +13,7 @@ executable SyntacticAnalyzer
                  , text -any
                  , pretty-tree -any
                  , containers -any
+                 , split -any
                  , argparser -any
                  , gtk -any
                  , diagrams -any
