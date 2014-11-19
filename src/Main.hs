@@ -60,12 +60,12 @@ analyze (Settings {nogui, input}) = do
     case runFSM parser inputText of
         Left err -> TIO.putStrLn $ prettyError inputText err
         Right expr -> do
-            let comms = map optimize . commutative $ expr
-            let brackets = concatMap (map optimize . openBrackets) comms
-            let orig  = optimize expr
-            let origTree  = exprToTree orig
-            let commTrees = map exprToTree comms
-            let bracketsTrees = map exprToTree brackets
+            let comms = commutative expr
+            let brackets = concatMap openBrackets comms
+            let orig  = expr
+            let origTree  = exprToTree (optimize orig)
+            let commTrees = map (exprToTree . optimize) comms
+            let bracketsTrees = map (exprToTree . optimize) brackets
             showTextExprs orig comms brackets
             if nogui
                 then showTextTrees origTree commTrees bracketsTrees
