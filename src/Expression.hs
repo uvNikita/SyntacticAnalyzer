@@ -23,16 +23,15 @@ module Expression (
     , optimize
     , commutative
     , openBrackets
-    , splitTerms
+    , cleanup
 ) where
 
 
 import           Prelude hiding(reverse)
 import           Data.Text (Text)
-import           Data.Maybe (fromJust)
 import qualified Data.Text as T
 import qualified Data.List as L
-import           Data.List (find, sortBy, groupBy, permutations)
+import           Data.List (sortBy, groupBy, permutations)
 import           Data.Function (on)
 
 import qualified Operation as O
@@ -156,31 +155,12 @@ commutative (RawExpr op (Brackets es)) = map brackets . commutative' $ es
     where brackets = RawExpr op . Brackets
 
 
--- mulTerm (RawExpr op1 el1) (RawExpr op2 el2 : rterm)
---     | op1 == op2 = RawExpr Sum el1  : RawExpr Mul el2 : rterm
---     | otherwise  = RawExpr Diff el1 : RawExpr Mul el2 : rterm
-
+mulOp :: Operation -> Operation -> Operation
 mulOp Sum  Diff = Diff
 mulOp Diff Sum  = Diff
 mulOp Sum  Sum  = Sum
 mulOp Diff Diff = Sum
 mulOp _    _    = error "Try to multiply wrong operations"
-
--- mul :: RawExpr -> RawExpr -> RawExpr
--- mul (RawExpr op1 t1@(Term _)) (RawExpr op2 t2@(Term _)) =
---     RawExpr (mulOp op1 op2) (Brackets [t1, t2])
--- mul (RawExpr op1 t1(Term _)) (RawExpr op2 (Brackets brs)) =
---     RawExpr (mulOp op1 op2) (
-
--- openBrackets :: RawExpr -> RawExpr
--- openBrackets (RawExpr op (Brackets es) = RawExpr op (Brackets openBrackets es)
--- openBrackets e = e
-
--- mulTerm :: RawExpr -> RawExpr -> RawExpr
--- mulTerm (RawExpr op1 e1) (RawExpr op2 e2@(Term _)) =
---     RawExpr (mulOp op1 op2) (Brackets [RawExpr Sum e1, RawExpr Mul e2])
--- mulTerm (RawExpr op1 e1) (RawExpr op2 (Brackets (RawExpr opb eb : es))) =
---     RawExpr (mulOp op1 op2) (Brackets (RawExpr opb e1 : RawExpr Mul eb : es))
 
 mulTerm :: RawExpr -> RawExpr -> RawExpr
 mulTerm (RawExpr op1 e1) (RawExpr op2 e2@(Term _)) =
@@ -213,7 +193,17 @@ takeWhile2 _ [x] = [x]
 takeWhile2 _ [] = []
 
 
-openBrackets (RawExpr op (Brackets es)) = map brackets variants
+openBrackets :: RawExpr -> [RawExpr]
+openBrackets (RawExpr op (Brackets es)) =
+    tail . takeWhile2 (/=) . map (cleanup . brackets) . iterate openOneBracket' $ es
     where brackets = RawExpr op . Brackets
-          variants = tail $ takeWhile2 (/=) .  iterate openOneBracket' $ es
 openBrackets e = [e]
+
+
+cleanup :: RawExpr -> RawExpr
+cleanup (RawExpr op (Brackets [e])) = RawExpr op new
+    where new = case cleanup e of
+                    RawExpr Sum e' -> e'
+                    e' -> Brackets [e']
+cleanup (RawExpr op (Brackets es)) = RawExpr op $ Brackets (map cleanup es)
+cleanup e = e
