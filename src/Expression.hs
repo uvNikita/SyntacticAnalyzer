@@ -162,20 +162,30 @@ mulOp Sum  Sum  = Sum
 mulOp Diff Diff = Sum
 mulOp _    _    = error "Try to multiply wrong operations"
 
-mulTerm :: RawExpr -> RawExpr -> RawExpr
-mulTerm (RawExpr op1 e1) (RawExpr op2 e2@(Term _)) =
-    RawExpr (mulOp op1 op2) (Brackets [RawExpr Sum e1, RawExpr Mul e2])
-mulTerm (RawExpr op1 e1) (RawExpr op2 (Brackets (RawExpr opb eb : es))) =
-    RawExpr (mulOp op1 op2) (Brackets (RawExpr opb e1 : RawExpr Mul eb : es))
+opTerm :: Operation -> RawExpr -> RawExpr -> RawExpr
+opTerm op (RawExpr op1 e1) (RawExpr op2 e2) =
+    RawExpr (mulOp op1 op2) (Brackets [RawExpr Sum e1, RawExpr op e2])
+-- opTerm op (RawExpr op1 e1) (RawExpr op2 (Brackets (RawExpr opb eb : es))) =
+--     RawExpr (mulOp op1 op2) (Brackets (RawExpr opb e1 : RawExpr op (Brackets (eb : es))))
+
+multiply :: RawExpr -> RawExpr -> RawExpr
+multiply = opTerm Mul
+
+
+divide :: RawExpr -> RawExpr -> RawExpr
+divide = opTerm Div
 
 
 openOneBracket' :: [RawExpr] -> [RawExpr]
 openOneBracket' (RawExpr op1 e1 : RawExpr Mul (Brackets es) : rest) =
     RawExpr op1 (Brackets (open es)) : rest
-    where open = map (mulTerm (RawExpr Sum e1)) . splitTerms'
+    where open = map (multiply (RawExpr Sum e1)) . splitTerms'
 openOneBracket' (RawExpr op1 (Brackets es) : RawExpr Mul e2 : rest) =
     openOneBracket' swapped
     where swapped = RawExpr op1 e2 : RawExpr Mul (Brackets es) : rest
+openOneBracket' (RawExpr op1 (Brackets es) : RawExpr Div e2 : rest) =
+    RawExpr op1 (Brackets (open es)) : rest
+    where open = map (`divide` RawExpr Sum e2) . splitTerms'
 openOneBracket' (old@(RawExpr op (Brackets es)) : rest) =
     if es' == es
         then old : openOneBracket' rest
@@ -201,6 +211,16 @@ openBrackets e = [e]
 
 
 cleanup :: RawExpr -> RawExpr
+-- cleanup (RawExpr op (Brackets es)) = RawExpr op . Brackets . concatMap rmBrs $ es
+--     where rmBrs (RawExpr Sum (Brackets es))
+--               | all isSum es = es
+--           rmBrs e = [e]
+--           isSum (RawExpr Sum _) = True
+--           isSum _ = False
+cleanup (RawExpr Diff (Brackets [RawExpr Diff el])) = RawExpr Sum new
+    where new = case el of
+                    Term _ -> el
+                    Brackets es -> Brackets $  map cleanup es
 cleanup (RawExpr op (Brackets [e])) = RawExpr op new
     where new = case cleanup e of
                     RawExpr Sum e' -> e'
