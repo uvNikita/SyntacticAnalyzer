@@ -69,6 +69,7 @@ reverse :: RawExpr -> RawExpr
 reverse (RawExpr op (Brackets es)) = RawExpr op . Brackets . map reverse . L.reverse $ es
 reverse e = e
 
+
 inverse :: RawExpr -> RawExpr
 inverse (RawExpr op e) = RawExpr (O.inverse op) e
 
@@ -151,7 +152,7 @@ commutative' es = map concat variants
 
 commutative :: RawExpr -> [RawExpr]
 commutative e@(RawExpr _ (Term _)) = [e]
-commutative (RawExpr op (Brackets es)) = map brackets . commutative' $ es
+commutative (RawExpr op (Brackets es)) = map (cleanup . brackets) . commutative' $ es
     where brackets = RawExpr op . Brackets
 
 
@@ -217,10 +218,11 @@ cleanup :: RawExpr -> RawExpr
 --           rmBrs e = [e]
 --           isSum (RawExpr Sum _) = True
 --           isSum _ = False
-cleanup (RawExpr Diff (Brackets [RawExpr Diff el])) = RawExpr Sum new
-    where new = case el of
-                    Term _ -> el
-                    Brackets es -> Brackets $  map cleanup es
+cleanup (RawExpr Diff (Brackets [RawExpr Diff el])) = cleanup $ RawExpr Sum el
+cleanup (RawExpr Diff (Brackets [RawExpr op1 el1, RawExpr Diff el2])) =
+    cleanup $ RawExpr Sum (Brackets [e1', e2'])
+    where e1' = RawExpr (O.inverse op1) el1
+          e2' = RawExpr Sum el2
 cleanup (RawExpr op (Brackets [e])) = RawExpr op new
     where new = case cleanup e of
                     RawExpr Sum e' -> e'

@@ -59,7 +59,8 @@ analyze (Settings {nogui, input}) = do
     let inputText = pack input
     case runFSM parser inputText of
         Left err -> TIO.putStrLn $ prettyError inputText err
-        Right expr -> do
+        Right rawexpr -> do
+            let expr = E.cleanup rawexpr
             let comms = commutative expr
             let brackets = concatMap openBrackets comms
             let orig  = expr
