@@ -139,7 +139,7 @@ step ExprS Letter = Right (VarS, char)
 step ExprS Space = Right (ExprS, pass)
 step ExprS _ = Left "parse error on input"
 
-step OpenBracketS Minus = Right (ExprS, char)
+step OpenBracketS Minus = Right (ExprS, operator)
 step OpenBracketS Number = Right (NumberS, char)
 step OpenBracketS OpenBracket = Right (OpenBracketS, bracket)
 step OpenBracketS Letter = Right (VarS, char)
