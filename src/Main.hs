@@ -17,15 +17,19 @@ module Main (
 ) where
 
 import           Data.Text (pack, intercalate)
+import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import           Data.List.Split (chunksOf)
+import           Data.List (minimumBy)
 
 import           Parser (parser)
 import           FSM (runFSM, prettyError)
 import           Expression (optimize, commutative, openBrackets)
 import qualified Tree
-import           Tree (exprToTree, BTree)
+import           Tree (exprToTree, BTree, Task, Const)
 import qualified Expression as E
+--import           Simulator (simulate, renderPs)
+import           Simulator
 
 import           Control.Monad.Trans (liftIO)
 import           Diagrams.Backend.Cairo (Cairo)
@@ -38,13 +42,14 @@ import           System.Console.ArgParser ( parsedBy, andBy, ParserSpec, Descr(.
                                           , mkApp, runApp, reqPos, boolFlag )
 
 
-data Settings = Settings { input :: String, nogui :: Bool } deriving (Show)
+data Settings = Settings { pnum :: Int, input :: String, nogui :: Bool } deriving (Show)
 
 
 argsParser :: ParserSpec Settings
 argsParser = Settings
-    `parsedBy` reqPos "expression" `Descr` "Expression to parse and analyze"
-    `andBy` boolFlag "no-gui" `Descr` "Run program in text mode"
+    `parsedBy` reqPos   "pnum"       `Descr` "Number of processors in system"
+    `andBy`    reqPos   "expression" `Descr` "Expression to parse and analyze"
+    `andBy`    boolFlag "no-gui"     `Descr` "Run program in text mode"
 
 
 main :: IO()
@@ -54,7 +59,7 @@ main = do
 
 
 analyze :: Settings -> IO ()
-analyze (Settings {nogui, input}) = do
+analyze (Settings { pnum, nogui, input }) = do
     let inputText = pack input
     case runFSM parser inputText of
         Left err -> TIO.putStrLn $ prettyError inputText err
@@ -70,6 +75,22 @@ analyze (Settings {nogui, input}) = do
             if nogui
                 then showTextTrees origTree commTrees bracketsTrees
                 else showGUITrees origTree commTrees bracketsTrees
+            showSimulations (fromIntegral pnum) origTree (commTrees ++ bracketsTrees)
+
+
+showSimulations :: Integer -> BTree Task Const -> [BTree Task Const] -> IO ()
+showSimulations pnum orig trees = do
+    let render = intercalate "\n----------------------\n" . map renderPs
+    let osim = simulate pnum orig
+    let sims = map (simulate pnum) trees
+    let cmp (_, sim1) (_, sim2) = compare sim1 sim2
+    let (besttree, bestsim) = minimumBy cmp $ zip (orig : trees) (osim : sims)
+    TIO.putStrLn . T.concat $ [ "Simulation: \n"
+                              , "Original: \n"
+                              , render osim
+                              , "Best: \n"
+                              , Tree.renderAsText besttree
+                              , render bestsim ]
 
 
 showTextExprs :: E.RawExpr -> [E.RawExpr] -> [E.RawExpr] -> IO ()

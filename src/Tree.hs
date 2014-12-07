@@ -20,7 +20,7 @@ module Tree (
     , renderAsDiagram
     , BTree (..)
     , Task (..)
-    , Const
+    , Const (..)
 ) where
 
 
@@ -28,6 +28,8 @@ import           Data.Tree.Pretty (drawVerticalTree)
 import qualified Data.Tree as T
 import           Data.Tree (Tree)
 import           Data.Text (Text, pack)
+
+import           Data.Function (on)
 
 import           Data.Monoid ((<>))
 import           Diagrams.Prelude (Diagram, (#), fc, white, text, (~~)
@@ -47,7 +49,13 @@ data BTree a b = Binary a (BTree a b) (BTree a b)
                | Leaf b
 
 
-data Task = Task Int Operation
+data Task = Task { idx :: Int, op :: Operation }
+
+instance Eq Task where
+    (==) = (==) `on` idx
+
+instance Ord Task where
+    compare = compare `on` idx
 
 instance Show Task where
     show (Task idx op) = show idx ++ ":" ++ show op
