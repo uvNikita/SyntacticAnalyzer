@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Tree
@@ -37,30 +38,36 @@ import           Expression (RawExpr(..), Elem(..))
 import           Operation (toChar, Operation(..))
 
 
-unaryMinusNode :: Elem -> Tree Text
-unaryMinusNode e = Node minus [leaf]
-  where minus = pack [toChar Diff]
-        leaf = elemToTree e
+data Inode = Inode Int Text
+
+instance Show Inode where
+    show (Inode idx name) = show idx ++ ":" ++ unpack name
 
 
-elemToTree :: Elem -> Tree Text
-elemToTree (Term name) = Node name []
-elemToTree (Brackets [RawExpr Diff e1]) = unaryMinusNode e1
-elemToTree (Brackets [RawExpr Diff e1, RawExpr op e2]) =
+unaryMinusNode :: Int -> Elem -> Tree Inode
+unaryMinusNode idx e = Node minus [leaf]
+  where minus = Inode idx (pack [toChar Diff])
+        leaf = elemToTree (idx * 2) e
+
+
+elemToTree :: Int -> Elem -> Tree Inode
+elemToTree idx (Term name) = Node (Inode idx name) []
+elemToTree idx (Brackets [RawExpr Diff e1]) = unaryMinusNode idx e1
+elemToTree idx (Brackets [RawExpr Diff e1, RawExpr op e2]) =
     Node root [left, right]
-    where root  = pack [toChar op]
-          left  = unaryMinusNode e1
-          right = elemToTree e2
-elemToTree (Brackets [RawExpr _ e1, RawExpr op e2]) =
+    where root  = Inode idx (pack [toChar op])
+          left  = unaryMinusNode (2 * idx) e1
+          right = elemToTree (2 * idx + 1) e2
+elemToTree idx (Brackets [RawExpr _ e1, RawExpr op e2]) =
     Node root [left, right]
-    where root  = pack [toChar op]
-          left  = elemToTree e1
-          right = elemToTree e2
-elemToTree _ = error "Non binary expression."
+    where root  = Inode idx (pack [toChar op])
+          left  = elemToTree (2 * idx)     e1
+          right = elemToTree (2 * idx + 1) e2
+elemToTree _ _ = error "Non binary expression."
 
 
-exprToTree :: RawExpr -> Tree Text
-exprToTree (RawExpr _ e) = elemToTree e
+exprToTree :: RawExpr -> Tree Inode
+exprToTree (RawExpr _ e) = elemToTree 1 e
 
 
 renderAsText :: (Show a) => Tree a -> Text
@@ -73,11 +80,12 @@ renderAsText = pack . drawVerticalTree . fmap show
 
 renderAsDiagram :: (Renderable DText.Text b
                   , Renderable (Path R2) b
-                  , Backend b R2)
-                 => Tree Text -> Diagram b R2
+                  , Backend b R2
+                  , Show a)
+                 => Tree a -> Diagram b R2
 renderAsDiagram = enchance . render
     where enchance = scale 10 . pad 1.1 . centerXY
           render tree = renderTree renderNode renderEdge layout
               where layout = symmLayout' (with & slHSep .~ 4 & slVSep .~ 4) tree
-                    renderNode = (<> circle 1 # fc white) . text . unpack
+                    renderNode = (<> circle 1.6 # fc white) . text . show
                     renderEdge = (~~)

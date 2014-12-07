@@ -99,7 +99,7 @@ writeText = scale 12 . pad 2.1 . centerXY . text
 rows n = vcat . map (hcat . map alignT) . chunksOf n
 
 
-showGUITrees :: Tree Text -> [Tree Text] -> [Tree Text] -> IO ()
+showGUITrees :: (Show a) => Tree a -> [Tree a] -> [Tree a] -> IO ()
 showGUITrees orig comms brackets = do
     let diagram = vcat [ writeText "Original"
                        , Tree.renderAsDiagram orig
