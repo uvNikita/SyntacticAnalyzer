@@ -23,7 +23,11 @@ module Operation (
 ) where
 
 
-data Operation = Mul | Sum | Div | Diff deriving(Show, Eq)
+data Operation = Mul | Sum | Div | Diff deriving (Eq)
+
+
+instance Show Operation where
+    show o = [toChar o]
 
 inverse :: Operation -> Operation
 inverse Mul  = Div

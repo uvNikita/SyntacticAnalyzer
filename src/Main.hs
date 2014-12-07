@@ -16,7 +16,7 @@ module Main (
     main
 ) where
 
-import           Data.Text (Text, pack, intercalate)
+import           Data.Text (pack, intercalate)
 import qualified Data.Text.IO as TIO
 import           Data.List.Split (chunksOf)
 
@@ -24,8 +24,7 @@ import           Parser (parser)
 import           FSM (runFSM, prettyError)
 import           Expression (optimize, commutative, openBrackets)
 import qualified Tree
-import           Tree (exprToTree)
-import           Data.Tree (Tree)
+import           Tree (exprToTree, BTree)
 import qualified Expression as E
 
 import           Control.Monad.Trans (liftIO)
@@ -83,7 +82,10 @@ showTextExprs orig comms brackets = do
     TIO.putStrLn . intercalate "\n" . map E.render $ brackets
 
 
-showTextTrees :: Show a => Tree a -> [Tree a] -> [Tree a] -> IO ()
+showTextTrees :: (Show a, Show b) => BTree a b
+                                  -> [BTree a b]
+                                  -> [BTree a b]
+                                  -> IO ()
 showTextTrees orig comms brackets = do
     TIO.putStrLn "Original:"
     TIO.putStrLn (Tree.renderAsText orig)
@@ -99,7 +101,10 @@ writeText = scale 12 . pad 2.1 . centerXY . text
 rows n = vcat . map (hcat . map alignT) . chunksOf n
 
 
-showGUITrees :: (Show a) => Tree a -> [Tree a] -> [Tree a] -> IO ()
+showGUITrees :: (Show a, Show b) => BTree a b
+                                 -> [BTree a b]
+                                 -> [BTree a b]
+                                 -> IO ()
 showGUITrees orig comms brackets = do
     let diagram = vcat [ writeText "Original"
                        , Tree.renderAsDiagram orig
