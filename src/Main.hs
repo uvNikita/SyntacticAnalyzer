@@ -86,9 +86,13 @@ showSimulations pnum orig trees = do
     let cmp (_, sim1) (_, sim2) = compare sim1 sim2
     let (besttree, bestsim) = minimumBy cmp $ zip (orig : trees) (osim : sims)
     TIO.putStrLn . T.concat $ [ "Simulation: \n"
-                              , "Original: \n"
+                              , "Original("
+                              , pack . show . length $ osim
+                              , ")\n"
                               , render osim
-                              , "Best: \n"
+                              , "Best("
+                              , pack . show . length $ bestsim
+                              , ")\n"
                               , Tree.renderAsText besttree
                               , render bestsim ]
 

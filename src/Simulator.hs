@@ -123,9 +123,8 @@ simulation :: Simulator ()
 simulation = do
     step
     State { ps } <- get
-    tell [ps]
     ready <- isFinished
-    unless ready simulation
+    unless ready (tell [ps] >> simulation)
 
 
 isFinished :: Simulator Bool
