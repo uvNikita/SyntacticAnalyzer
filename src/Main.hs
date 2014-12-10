@@ -90,7 +90,7 @@ showSimulations pnum orig trees = do
                               , pack . show . length $ osim
                               , ")\n"
                               , render osim
-                              , "Best("
+                              , "\n\nBest("
                               , pack . show . length $ bestsim
                               , ")\n"
                               , Tree.renderAsText besttree
